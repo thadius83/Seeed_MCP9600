@@ -1,12 +1,10 @@
-// Project:  MCP9600‑Refactor
+// Project:  MCP9600‑Refactor (ESP‑IDF new I²C driver)
 // File:     Seeed_MCP9600.cpp   Date: 2025‑07‑22
-// Summary:  Implementation for MCP9600 new‑I²C driver
-
+// SPDX-License-Identifier: MIT
 #include "Seeed_MCP9600.h"
-#include <string.h>
-#include <math.h>
+#include <math.h>     // fabsf, roundf
 
-/* ---------------------- ctor / setup ----------------------------------- */
+/* ───────── ctor / setup ───────── */
 MCP9600::MCP9600(uint8_t dev_addr) : addr_(dev_addr) {}
 
 mcp_err_t MCP9600::begin(i2c_master_bus_handle_t bus, uint32_t scl_speed_hz)
@@ -14,20 +12,20 @@ mcp_err_t MCP9600::begin(i2c_master_bus_handle_t bus, uint32_t scl_speed_hz)
     if (!bus) return ERROR_PARAM;
 
     i2c_device_config_t cfg = {};
-    cfg.dev_addr      = addr_;
-    cfg.scl_speed_hz  = scl_speed_hz;
+    cfg.dev_addr     = addr_;
+    cfg.scl_speed_hz = scl_speed_hz ? scl_speed_hz : 100000;
+
     esp_err_t e = i2c_master_bus_add_device(bus, &cfg, &dev_);
     return map_err(e);
 }
 
-/* --------------------- public high‑level API --------------------------- */
+/* ───────── public high‑level API ───────── */
 mcp_err_t MCP9600::init(uint8_t therm_type)
 {
     uint16_t ver;
     mcp_err_t ret = read_version(&ver);
     if (ret) return ret;
 
-    /* set thermocouple type (bits[6:4]) */
     uint8_t cfg;
     if ((ret = read_byte(THERM_SENS_CFG_REG_ADDR, &cfg))) return ret;
     cfg = (cfg & 0x8F) | (therm_type & 0x70);
@@ -73,7 +71,20 @@ mcp_err_t MCP9600::read_status(uint8_t *byte)
     return read_byte(STAT_REG_ADDR, byte);
 }
 
-/* ------------------------ helpers -------------------------------------- */
+/* extra setters preserved for sketch compatibility */
+mcp_err_t MCP9600::set_filt_coefficients(uint8_t b)
+{
+    /* lower 3 bits in THERM_SENS_CFG register */
+    return write_byte(THERM_SENS_CFG_REG_ADDR, (b & 0x07) | 0x00);
+}
+
+mcp_err_t MCP9600::set_ADC_meas_resolution(uint8_t b)
+{
+    /* bits 6‑5 in DEVICE_CFG register */
+    return write_byte(DEVICE_CFG_REG_ADDR, (b & 0x60) | 0x00);
+}
+
+/* ───────── helper ───────── */
 uint16_t MCP9600::covert_temp_to_reg_form(float t)
 {
     bool neg = t < 0;
@@ -83,15 +94,16 @@ uint16_t MCP9600::covert_temp_to_reg_form(float t)
     float    frac    = t - integer;
 
     uint8_t H = integer / 16;
-    uint8_t L = ((integer % 16) << 4) | static_cast<uint8_t>(roundf(frac / 0.25f)) << 2;
+    uint8_t L = ((integer % 16) << 4) |
+                (static_cast<uint8_t>(roundf(frac / 0.25f)) << 2);
+
     if (neg) H |= 0x80;
 
     return (static_cast<uint16_t>(H) << 8) | L;
 }
 
-/* ------------------------ low‑level I²C -------------------------------- */
+/* ───────── low‑level I²C helpers ───────── */
 #define MCP_I2C_TIMEOUT  pdMS_TO_TICKS(20)
-
 
 mcp_err_t MCP9600::write_byte(uint8_t reg, uint8_t val)
 {
@@ -107,13 +119,15 @@ mcp_err_t MCP9600::write_16(uint8_t reg, uint16_t val)
 
 mcp_err_t MCP9600::read_byte(uint8_t reg, uint8_t *val)
 {
-    return map_err(i2c_master_transmit_receive(dev_, &reg, 1, val, 1, MCP_I2C_TIMEOUT));
+    return map_err(i2c_master_transmit_receive(dev_, &reg, 1,
+                                               val, 1, MCP_I2C_TIMEOUT));
 }
 
 mcp_err_t MCP9600::read_16(uint8_t reg, uint16_t *val)
 {
     uint8_t rx[2];
-    esp_err_t e = i2c_master_transmit_receive(dev_, &reg, 1, rx, 2, MCP_I2C_TIMEOUT);
+    esp_err_t e = i2c_master_transmit_receive(dev_, &reg, 1,
+                                              rx, 2, MCP_I2C_TIMEOUT);
     if (e != ESP_OK) return map_err(e);
     *val = (uint16_t(rx[0]) << 8) | rx[1];
     return NO_ERROR;
@@ -121,10 +135,11 @@ mcp_err_t MCP9600::read_16(uint8_t reg, uint16_t *val)
 
 mcp_err_t MCP9600::read_bytes(uint8_t reg, uint8_t *buf, size_t len)
 {
-    return map_err(i2c_master_transmit_receive(dev_, &reg, 1, buf, len, MCP_I2C_TIMEOUT));
+    return map_err(i2c_master_transmit_receive(dev_, &reg, 1,
+                                               buf, len, MCP_I2C_TIMEOUT));
 }
 
-/* ------------------------- error mapper -------------------------------- */
+/* ───────── error mapper ───────── */
 mcp_err_t MCP9600::map_err(esp_err_t err)
 {
     return (err == ESP_OK) ? NO_ERROR : ERROR_COMM;
