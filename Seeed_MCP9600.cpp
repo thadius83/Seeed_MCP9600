@@ -124,26 +124,32 @@ mcp_err_t MCP9600::write_16(uint8_t reg, uint16_t val)
     return map_err(i2c_master_transmit(dev_, buf, 3, MCP_I2C_TIMEOUT));
 }
 
+/* -- 1 byte read -------------------------------------------------------- */
 mcp_err_t MCP9600::read_byte(uint8_t reg, uint8_t *val)
 {
-    return map_err(i2c_master_transmit_receive(dev_, &reg, 1,
-                                               val, 1, MCP_I2C_TIMEOUT));
+    esp_err_t e = i2c_master_transmit(dev_, &reg, 1, MCP_I2C_TIMEOUT);   // WRITE + STOP
+    if (e != ESP_OK) return map_err(e);
+    return map_err(i2c_master_receive(dev_, val, 1, MCP_I2C_TIMEOUT));   // START + READ + STOP
 }
 
+/* -- 16 bit read -------------------------------------------------------- */
 mcp_err_t MCP9600::read_16(uint8_t reg, uint16_t *val)
 {
     uint8_t rx[2];
-    esp_err_t e = i2c_master_transmit_receive(dev_, &reg, 1,
-                                              rx, 2, MCP_I2C_TIMEOUT);
+    esp_err_t e = i2c_master_transmit(dev_, &reg, 1, MCP_I2C_TIMEOUT);
+    if (e != ESP_OK) return map_err(e);
+    e = i2c_master_receive(dev_, rx, 2, MCP_I2C_TIMEOUT);
     if (e != ESP_OK) return map_err(e);
     *val = (uint16_t(rx[0]) << 8) | rx[1];
     return NO_ERROR;
 }
 
+/* -- bulk read ---------------------------------------------------------- */
 mcp_err_t MCP9600::read_bytes(uint8_t reg, uint8_t *buf, size_t len)
 {
-    return map_err(i2c_master_transmit_receive(dev_, &reg, 1,
-                                               buf, len, MCP_I2C_TIMEOUT));
+    esp_err_t e = i2c_master_transmit(dev_, &reg, 1, MCP_I2C_TIMEOUT);
+    if (e != ESP_OK) return map_err(e);
+    return map_err(i2c_master_receive(dev_, buf, len, MCP_I2C_TIMEOUT));
 }
 
 /* ───────── error mapper ───────── */
