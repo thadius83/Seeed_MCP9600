@@ -29,15 +29,22 @@ mcp_err_t MCP9600::begin(i2c_master_bus_handle_t bus, uint32_t scl_speed_hz)
 /* ───────── public high‑level API ───────── */
 mcp_err_t MCP9600::init(uint8_t therm_type)
 {
+    /* 1.  read silicon version – works fine */
     uint16_t ver;
     mcp_err_t ret = read_version(&ver);
     if (ret) return ret;
 
+    /* 2.  UNLOCK configuration registers  -------------------- */
+    ret = write_byte(DEVICE_CFG_REG_ADDR, 0x80);        // bit 7 = 1
+    if (ret) return ret;
+
+    /* 3.  now it’s legal to R/W THERM_SENS_CFG etc. ---------- */
     uint8_t cfg;
     if ((ret = read_byte(THERM_SENS_CFG_REG_ADDR, &cfg))) return ret;
     cfg = (cfg & 0x8F) | (therm_type & 0x70);
     return write_byte(THERM_SENS_CFG_REG_ADDR, cfg);
 }
+
 
 mcp_err_t MCP9600::read_version(uint16_t *ver)
 {
