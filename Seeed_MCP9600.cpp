@@ -12,19 +12,13 @@ mcp_err_t MCP9600::begin(i2c_master_bus_handle_t bus, uint32_t scl_speed_hz)
     if (!bus) return ERROR_PARAM;
 
     i2c_device_config_t cfg{};          // zero‑init
-#if __cplusplus >= 201703L
-    /* field renamed in Arduino‑ESP32's IDF fork */
-    if constexpr (std::is_member_pointer_v<decltype(&i2c_device_config_t::device_address)>) {
-        cfg.device_address = addr_;
-    } else {
-        cfg.dev_addr       = addr_;
-    }
+    /* field renamed in Arduino‑ESP32's IDF fork - use version-based detection */
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
+    cfg.device_address = addr_;         // ESP-IDF v5.0+ uses device_address
+#elif defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR == 4) && defined(ESP_IDF_VERSION_MINOR) && (ESP_IDF_VERSION_MINOR >= 4)
+    cfg.device_address = addr_;         // ESP-IDF v4.4+ uses device_address
 #else
-#ifdef ESP_IDF_VERSION_MAJOR  /* fallback for pre‑C++17 cores */
-    cfg.device_address = addr_;
-#else
-    cfg.dev_addr       = addr_;
-#endif
+    cfg.dev_addr       = addr_;         // older versions use dev_addr
 #endif
     cfg.scl_speed_hz   = scl_speed_hz ? scl_speed_hz : 100000;
 
