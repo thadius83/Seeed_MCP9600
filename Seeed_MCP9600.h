@@ -7,6 +7,7 @@
 #include <driver/i2c_master.h>
 #include <esp_err.h>
 #include <stdint.h>
+#include <freertos/FreeRTOS.h> 
 
 /* ----------------------------- type aliases ----------------------------- */
 using  s32 = int32_t;     using  u32 = uint32_t;
@@ -68,6 +69,6 @@ private:
     /* mapping */
     static mcp_err_t map_err(esp_err_t err);
 
-    i2c_device_handle_t dev_   = nullptr;
+    i2c_master_dev_handle_t dev_ = nullptr;
     uint8_t             addr_  = DEFAULT_IIC_ADDR;
 };

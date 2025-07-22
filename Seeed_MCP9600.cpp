@@ -13,10 +13,9 @@ mcp_err_t MCP9600::begin(i2c_master_bus_handle_t bus, uint32_t scl_speed_hz)
 {
     if (!bus) return ERROR_PARAM;
 
-    i2c_device_config_t cfg = {
-        .dev_addr      = addr_,
-        .scl_speed_hz  = static_cast<int>(scl_speed_hz),
-    };
+    i2c_device_config_t cfg = {};
+    cfg.dev_addr      = addr_;
+    cfg.scl_speed_hz  = scl_speed_hz;
     esp_err_t e = i2c_master_bus_add_device(bus, &cfg, &dev_);
     return map_err(e);
 }
@@ -92,6 +91,7 @@ uint16_t MCP9600::covert_temp_to_reg_form(float t)
 
 /* ------------------------ low‑level I²C -------------------------------- */
 #define MCP_I2C_TIMEOUT  pdMS_TO_TICKS(20)
+
 
 mcp_err_t MCP9600::write_byte(uint8_t reg, uint8_t val)
 {
